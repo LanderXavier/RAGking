@@ -1,48 +1,34 @@
 # RAGking v2.1 👑
 ### *Lightweight Multidimensional Evaluation Framework for RAG Pipelines*
 
-**RAGking** es un framework de evaluación automatizada diseñado para auditar la calidad, el costo y la eficiencia operativa de sistemas de Generación Aumentada por Recuperación (RAG). A diferencia de los enfoques de evaluación generalizados, RAGking permite consolidar métricas de veracidad factual (vía *LLM-as-a-Judge*) y telemetría computacional en un único **Response Quality Index (RQI)** estandarizado.
+**RAGking** is an automated evaluation framework designed to audit the quality, cost, and operational efficiency of Retrieval-Augmented Generation (RAG) systems. Unlike generalized evaluation approaches, RAGking consolidates factual veracity metrics (via *LLM-as-a-Judge*) and computational telemetry into a single, standardized **Response Quality Index (RQI)**.
 
 ---
 
-## 🚀 Características Clave
+## 🚀 Key Features
 
-* **Evaluación Factual Estricta (1-5 Escala):** Diseñado específicamente para dominios de alta sensibilidad (como el ámbito legal), penalizando severamente las alucinaciones factuales sobre los costos computacionales.
-* **Telemetría Operativa:** Mapea el consumo de tokens y la latencia de ejecución de extremo a extremo de forma determinista.
-* **Conmensurabilidad Multidimensional:** Normaliza linealmente variables heterogéneas (tiempo, tokens, correctitud) a una escala común de `0 a 10` para un análisis de *trade-offs* transparente.
-* **Automatizado y Programático:** Diseñado para ejecutarse sobre conjuntos de datos en formato CSV/Excel mediante pipelines de Python eficientes.
+* **Strict Factual Evaluation (1-5 Scale):** Specifically designed for highly sensitive domains (such as the legal field), severely penalizing factual hallucinations over computational costs.
+* **Operational Telemetry:** Deterministically maps token consumption and end-to-end execution latency.
+* **Multidimensional Commensurability:** Linearly normalizes heterogeneous variables (time, tokens, correctness) to a common `0 to 10` scale for transparent trade-off analysis.
+* **Automated and Programmatic:** Designed to execute on datasets in CSV/Excel format via efficient Python pipelines.
 
 ---
 
-## 📐 Métricas de Evaluación y Normalización
+## 📐 Evaluation and Normalization Metrics
 
-El framework consolida tres dimensiones críticas en el cálculo del **RQI Final**:
+The framework consolidates three critical dimensions in the calculation of the **Final RQI**:
 
-1. **Factual Correctness Score (S_C):** Basado en una rúbrica de evaluación automatizada de 1 a 5 y normalizado linealmente:
+1. **Factual Correctness Score (S_C):** Based on an automated evaluation rubric from 1 to 5 and linearly normalized:
    S_C = ((Score_LLM - 1) / (5 - 1)) * 10
 
-2. **Token Efficiency Score (S_T):** Escala Min-Max invertida para premiar la optimización del tamaño del prompt y el costo de la API:
+2. **Token Efficiency Score (S_T):** Inverted Min-Max scaling to reward prompt size optimization and API cost efficiency:
    S_T = 10 * ((T_max - T_i) / (T_max - T_min))
 
-3. **Latency Efficiency Score (S_L):** Escala Min-Max invertida para evaluar la velocidad de respuesta del sistema en milisegundos:
+3. **Latency Efficiency Score (S_L):** Inverted Min-Max scaling to evaluate the system's response speed in milliseconds:
    S_L = 10 * ((L_max - L_i) / (L_max - L_min))
 
 ### Response Quality Index (RQI)
-El puntaje definitivo del sistema es la media aritmética de los tres scores escalados:
+The definitive system score is the arithmetic mean of the three scaled scores:
 RQI_i = (S_C,i + S_T,i + S_L,i) / 3
 
 ---
-
-## 🛠️ Estructura del Repositorio
-
-```bash
-├── data/
-│   ├── RAG.csv                # Respuestas del sistema y logs brutos de ejecución
-│   └── noRAG.csv              # Respuestas del baseline (Zero-shot)
-├── src/
-│   ├── llm_evaluator.py       # Pipeline de LLM-as-a-Judge (Rúbrica 1-5)
-│   └── normalization.py       # Motor matemático de escalado a 10 y cálculo de RQI
-├── notebooks/
-│   └── analytics_suite.ipynb  # Jupyter Notebook para análisis en vivo y gráficos (.pdf)
-├── requirements.txt           # Dependencias del sistema
-└── README.md
