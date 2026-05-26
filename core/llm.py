@@ -15,7 +15,7 @@ from core.config import state
 # ══════════════════════════════════════════════════════════════════════════════
 #  JUDGE PROMPT
 # ══════════════════════════════════════════════════════════════════════════════
-JUDGE_PROMPT = """You are an expert factual evaluator assessing responses in a strict legal context. 
+JUDGE_PROMPT = """You are an expert factual evaluator assessing responses in a strict legal context.
 Your primary directives are:
 - MISTAKEN FACT: Providing incorrect or hallucinated information is the WORST possible outcome.
 - IGNORANCE IS SAFER: Safely admitting lack of information is better than lying.
@@ -35,6 +35,7 @@ Question: {question}
 Correct Answer: {correct}
 Generated Answer: {generated}
 """
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  EMBEDDING

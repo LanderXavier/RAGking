@@ -270,23 +270,110 @@ def _print_summary(df: pd.DataFrame):
         )
 
 
+def _print_raw_summary(df: pd.DataFrame):
+    group_col = "Model" if "Model" in df.columns else None
+    if group_col:
+        summary = df.groupby(group_col).agg(
+            Rows        =("Question",            "count"),
+            Correctness =("Correctness",         "mean"),
+            Latency_ms  =("Execution Time (ms)", "mean"),
+            TokEff      =("token_eff_raw",       "mean"),
+            Cost        =("cost_per_query",      "mean"),
+            EconEff     =("economic_eff_raw",    "mean"),
+            Failures    =("is_failure",          "sum"),
+            Sim         =("String Similarity",   "mean"),
+        ).round(4)
+        rows = [(str(n), row) for n, row in summary.iterrows()]
+    else:
+        rows = [("All data", {
+            "Rows":       len(df),
+            "Correctness":df["Correctness"].mean(),
+            "Latency_ms": df["Execution Time (ms)"].mean(),
+            "TokEff":    df["token_eff_raw"].mean(),
+            "Cost":      df["cost_per_query"].mean(),
+            "EconEff":   df["economic_eff_raw"].mean(),
+            "Failures":  int(df["is_failure"].sum()),
+            "Sim":       df["String Similarity"].mean(),
+        })]
+
+    print(f"\n  {C.B}{C.WH}{'Config':<22} {'Rows':>5} {'Corr':>6} {'Lat(ms)':>9} {'TokEff':>8} {'Cost':>12} {'EconEff':>10} {'Fail':>5} {'Sim':>6}{C.R}")
+    print(f"  {C.GY}{'─'*96}{C.R}")
+    for name, row in rows:
+        print(
+            f"  {C.CY}{name:<22}{C.R}"
+            f"  {int(row['Rows']):>5}"
+            f"  {float(row['Correctness']):>6.2f}"
+            f"  {float(row['Latency_ms']):>9.1f}"
+            f"  {float(row['TokEff']):>8.2f}"
+            f"  {float(row['Cost']):>12.6f}"
+            f"  {float(row['EconEff']):>10.4f}"
+            f"  {int(row['Failures']):>5}"
+            f"  {float(row['Sim']):>6.3f}"
+        )
+
+
+def _pick_metric_bounds(raw_df: pd.DataFrame) -> tuple[dict, str]:
+    from core.metrics import build_global_bounds, extract_metric_bounds, get_bounds_profile, list_bounds_profiles
+
+    section("Normalization Bounds")
+    print(f"""
+  {C.WH}Choose which bounds the individual report should use.{C.R}
+
+  {C.YL}[1]{C.R}  Local bounds from the current dataset (existing behavior)
+  {C.YL}[2]{C.R}  Global bounds merged from all saved profiles in bounds.json
+  {C.YL}[3]{C.R}  One saved bounds profile from bounds.json
+""")
+
+    choice = ask("Select bounds source", "1")
+
+    if choice == "1":
+        return extract_metric_bounds(raw_df), "local bounds from current dataset"
+
+    if choice == "2":
+        global_bounds = build_global_bounds()
+        if global_bounds:
+            return global_bounds, "global bounds from bounds.json"
+        warn("No saved bounds profiles found in bounds.json. Falling back to local bounds.")
+        return extract_metric_bounds(raw_df), "local bounds from current dataset"
+
+    if choice == "3":
+        profiles = list_bounds_profiles()
+        if not profiles:
+            warn("No saved bounds profiles found in bounds.json. Falling back to local bounds.")
+            return extract_metric_bounds(raw_df), "local bounds from current dataset"
+
+        print(f"\n  {C.WH}Available bounds profiles:{C.R}")
+        for i, profile_name in enumerate(profiles, 1):
+            print(f"    {C.YL}[{i}]{C.R}  {profile_name}")
+        selected_raw = ask(f"Choose [1–{len(profiles)}]", "1")
+        try:
+            selected_profile = profiles[int(selected_raw) - 1]
+        except (ValueError, IndexError):
+            selected_profile = profiles[0]
+
+        profile_bounds = get_bounds_profile(selected_profile)
+        if profile_bounds:
+            return profile_bounds, f"bounds profile: {selected_profile}"
+
+        warn(f"Bounds profile '{selected_profile}' could not be loaded. Falling back to local bounds.")
+        return extract_metric_bounds(raw_df), "local bounds from current dataset"
+
+    return extract_metric_bounds(raw_df), "local bounds from current dataset"
+
+
 # ══════════════════════════════════════════════════════════════════════════════
-#  4 — GENERATE METRICS, CHARTS & EXPORT
+#  4 — GENERATE RAW METRICS & BOUNDS
 # ══════════════════════════════════════════════════════════════════════════════
-def menu_metrics():
+def menu_raw_metrics():
     banner()
-    section("4 · Generate Metrics, Charts & Export")
+    section(tr("generate_raw_metrics"))
 
     if state["df"] is None:
         err("No dataset loaded. Go to option 1 first."); pause(); return
 
     from core.llm import compute_correctness_and_similarity
-    from core.metrics import collect_operational_factors, compute_metrics
-    from charts.plots import (
-        plot_distribution, plot_dashboard, plot_model_comparison,
-    )
+    from core.metrics import collect_operational_factors, compute_raw_metrics, extract_metric_bounds, save_bounds_profile, make_bounds_snapshot_name
     from export.excel import export_excel, export_csv_results
-    from export.pdf_report import generate_pdf_report
 
     df = state["df"].copy()
 
@@ -310,13 +397,156 @@ def menu_metrics():
         default_fail, min_val=0, max_val=len(df),
     )
 
-    results = compute_metrics(df, operational_factors=operational_factors,
-                              failure_count_override=failure_count)
-    state["results_df"] = results
+    raw_results = compute_raw_metrics(
+        df,
+        operational_factors=operational_factors,
+        failure_count_override=failure_count,
+    )
+    state["raw_metrics_df"] = raw_results
+    state["results_df"] = raw_results
 
     # Derive base name from input CSV to use as default output prefix
     from pathlib import Path
     csv_path = state.get("csv_path") or "results.csv"
+    base_name = Path(csv_path).stem
+    bounds_profile_name = make_bounds_snapshot_name(base_name)
+    bounds_snapshot = extract_metric_bounds(raw_results)
+    save_bounds_profile(bounds_profile_name, bounds_snapshot, source_name=csv_path, row_count=len(raw_results))
+
+    section("Raw Metrics Summary")
+    _print_raw_summary(raw_results)
+
+    info(f"Bounds snapshot saved as '{bounds_profile_name}' in bounds.json.")
+    ok("Raw metrics computed. No RAGking score was calculated in this step.")
+
+    section(tr("export_options"))
+    print(f"""
+  {C.YL}[1]{C.R}  Export raw CSV only
+  {C.YL}[2]{C.R}  Export raw Excel only
+  {C.YL}[3]{C.R}  Export raw CSV + Excel
+  {C.YL}[0]{C.R}  Skip export
+""")
+    choice = ask("Select export option", "3")
+
+    if choice in ["1", "3"]:
+        out = ask("CSV filename", f"{base_name}_raw_metrics.csv")
+        if out and not os.path.splitext(out)[1]:
+            out = out + ".csv"
+        export_csv_results(raw_results, out)
+        state["raw_metrics_csv_path"] = out
+
+    if choice in ["2", "3"]:
+        out = ask("Excel filename", f"{base_name}_raw_metrics.xlsx")
+        if out and not os.path.splitext(out)[1]:
+            out = out + ".xlsx"
+        export_excel(raw_results, out)
+
+    pause()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  5 — GENERATE REPORTS FROM BOUNDS
+# ══════════════════════════════════════════════════════════════════════════════
+def menu_reports():
+    banner()
+    section(tr("generate_report"))
+
+    if state["df"] is None and state.get("raw_metrics_df") is None:
+        err("No dataset loaded. Go to option 1 first."); pause(); return
+
+    from pathlib import Path
+    from core.metrics import collect_operational_factors, compute_raw_metrics, compute_metrics
+    from charts.plots import (
+        plot_distribution, plot_dashboard, plot_model_comparison,
+    )
+    from export.excel import export_excel, export_csv_results
+    from export.pdf_report import generate_pdf_report
+
+    load_choice = ask("Load raw metrics CSV from option 4? [y/n]", "y").strip().lower()
+    raw_results = None
+
+    if load_choice in {"y", "yes", "s", "si", "sí"}:
+        default_raw = state.get("raw_metrics_csv_path") or f"{Path(state.get('csv_path') or 'results.csv').stem}_raw_metrics.csv"
+        raw_path = ask("Path to raw metrics CSV", default_raw)
+        if raw_path and not os.path.splitext(raw_path)[1]:
+            raw_path = raw_path + ".csv"
+        if not os.path.exists(raw_path):
+            err(f"File not found: {raw_path}"); pause(); return
+        raw_results = pd.read_csv(raw_path)
+        state["raw_metrics_df"] = raw_results
+        state["raw_metrics_csv_path"] = raw_path
+        info(f"Loaded raw metrics CSV: {raw_path}")
+    elif state.get("raw_metrics_df") is not None:
+        raw_results = state["raw_metrics_df"].copy()
+        info("Using raw metrics already present in memory.")
+    else:
+        df = state["df"].copy()
+        from core.llm import compute_correctness_and_similarity
+
+        if "Correctness" not in df.columns or "String Similarity" not in df.columns:
+            info("Computing Correctness (LLM judge) and String Similarity (embeddings)...")
+            df = compute_correctness_and_similarity(df, state["llm"], progress=True)
+        else:
+            info("Using existing Correctness / String Similarity columns.")
+
+        operational_factors = collect_operational_factors(df)
+        state["operational_factors"] = operational_factors
+
+        default_fail = int((
+            df["Correctness"].isna()
+            | (pd.to_numeric(df["Correctness"], errors="coerce").fillna(0) == 0)
+            | df["Generated Answer"].isna()
+            | (df["Generated Answer"].astype(str).str.strip() == "")
+        ).sum())
+        failure_count = ask_int_range(
+            f"Failure count out of {len(df)} questions",
+            default_fail, min_val=0, max_val=len(df),
+        )
+
+        raw_results = compute_raw_metrics(
+            df,
+            operational_factors=operational_factors,
+            failure_count_override=failure_count,
+        )
+        state["raw_metrics_df"] = raw_results
+        state["raw_metrics_csv_path"] = state.get("csv_path") or "results.csv"
+
+    if "Correctness" not in raw_results.columns or "String Similarity" not in raw_results.columns:
+        err("Raw metrics CSV must include Correctness and String Similarity columns."); pause(); return
+
+    if "Generated Answer" not in raw_results.columns:
+        raw_results["Generated Answer"] = ""
+
+    if state.get("operational_factors") is None:
+        state["operational_factors"] = collect_operational_factors(raw_results)
+
+    operational_factors = state["operational_factors"]
+
+    if "failure_rate" in raw_results.columns:
+        failure_count = None
+    else:
+        default_fail = int((
+            raw_results["Correctness"].isna()
+            | (pd.to_numeric(raw_results["Correctness"], errors="coerce").fillna(0) == 0)
+            | raw_results.get("Generated Answer", pd.Series([""] * len(raw_results))).isna()
+        ).sum())
+        failure_count = ask_int_range(
+            f"Failure count out of {len(raw_results)} questions",
+            default_fail, min_val=0, max_val=len(raw_results),
+        )
+
+    metric_bounds, bounds_source = _pick_metric_bounds(raw_results)
+    state["metric_bounds_source"] = bounds_source
+
+    results = compute_metrics(
+        raw_results,
+        operational_factors=operational_factors,
+        failure_count_override=failure_count,
+        metric_bounds=metric_bounds,
+    )
+    state["results_df"] = results
+
+    csv_path = state.get("raw_metrics_csv_path") or state.get("csv_path") or "results.csv"
     base_name = Path(csv_path).stem
 
     section("Summary Table")
@@ -344,7 +574,6 @@ def menu_metrics():
     Avg token efficiency   {C.YL}{results['token_eff_raw'].mean():.2f} tok/pt{C.R}
 """)
 
-    # ── Export menu ───────────────────────────────────────────────────────────
     section(tr("export_options"))
     print(f"""
   {C.YL}[1]{C.R}  Export to Excel  (.xlsx)
@@ -358,21 +587,18 @@ def menu_metrics():
 
     if choice in ["1"]:
         out = ask(tr("excel_output"), f"{base_name}.xlsx")
-        # Ensure extension
         if out and not os.path.splitext(out)[1]:
             out = out + ".xlsx"
         export_excel(results, out)
 
     if choice in ["2"]:
         out = ask("CSV filename", f"{base_name}_results.csv")
-        # Ensure extension
         if out and not os.path.splitext(out)[1]:
             out = out + ".csv"
         export_csv_results(results, out)
 
     if choice in ["3"]:
         pdf_path = ask(tr("pdf_output"), f"{base_name}_report.pdf")
-        # Ensure extension
         if pdf_path and not os.path.splitext(pdf_path)[1]:
             pdf_path = pdf_path + ".pdf"
         generate_pdf_report(results, pdf_path,
@@ -449,7 +675,7 @@ def _export_individual_charts(results: pd.DataFrame, base_name: str = None, char
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  5 — COMPARE RAG FRAMEWORKS
+#  6 — COMPARE RAG FRAMEWORKS
 # ══════════════════════════════════════════════════════════════════════════════
 def menu_compare_frameworks():
     banner()
@@ -457,13 +683,11 @@ def menu_compare_frameworks():
 
     print(f"""
   {C.WH}Load 2 or more RAG orchestration framework CSVs to compare them.{C.R}
-  {C.GY}Each CSV must have the same required columns as the main dataset.{C.R}
-  {C.GY}Correctness and similarity will be computed if not present.{C.R}
+    {C.GY}Each CSV must be a saved report CSV that already contains RAGking_score.{C.R}
+    {C.GY}The comparison will reuse the CSV values directly and will not recompute metrics.{C.R}
   {C.GY}Leave framework name blank to finish adding frameworks.{C.R}
 """)
 
-    from core.llm import compute_correctness_and_similarity
-    from core.metrics import collect_operational_factors, compute_metrics
     from charts.plots import (
         plot_framework_comparison_bars, plot_framework_ragking_bars,
         plot_framework_spider, plot_framework_box,
@@ -494,23 +718,21 @@ def menu_compare_frameworks():
         if df is None:
             err("Could not parse file."); continue
 
-        missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        required_compare_cols = [
+            "Correctness", "String Similarity", "RAGking_score",
+            "cost_per_query", "token_eff_raw", "economic_eff_raw",
+            "C_norm", "E_norm", "L_norm", "M_norm", "F_norm",
+        ]
+        missing = [col for col in required_compare_cols if col not in df.columns]
         if missing:
-            err(f"Missing columns: {missing}"); continue
+            err(
+                f"'{name}' is missing comparison columns: {missing}. Use the exported report CSV from the individual report first."
+            )
+            continue
 
-        # Compute Correctness / Similarity if absent
-        if "Correctness" not in df.columns or "String Similarity" not in df.columns:
-            info(f"Computing metrics for '{name}'...")
-            df = compute_correctness_and_similarity(df, state["llm"], progress=True)
-
-        # Operational factors & scoring
-        section(f"Operational factors for '{name}'")
-        op_factors = collect_operational_factors(df, interactive=False)
-
-        scored = compute_metrics(df, operational_factors=op_factors)
-        frameworks[name] = scored
-        state["frameworks"][name] = scored
-        ok(tr("fw_loaded", name=name, rows=len(scored)))
+        frameworks[name] = df
+        state["frameworks"][name] = df
+        ok(tr("fw_loaded", name=name, rows=len(df)))
 
     if len(frameworks) < 2:
         warn(tr("fw_min_warning")); pause(); return
@@ -614,7 +836,7 @@ def _export_framework_charts(frameworks: dict, out_dir: str):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  6 — LANGUAGE SETTINGS
+#  7 — LANGUAGE SETTINGS
 # ══════════════════════════════════════════════════════════════════════════════
 def menu_language():
     banner()
@@ -653,14 +875,17 @@ def main():
   {C.YL}[3]{C.R}  {C.WH}{tr('llm_settings')}{C.R}
        {C.GY}Judge: {c['judge_model']}   Embed: {c['embedding_model']}{C.R}
 
-  {C.YL}[4]{C.R}  {C.WH}{tr('generate_metrics')}{C.R}
-       {C.GY}Compute ℛ · ASCII charts · Excel + CSV + PDF{C.R}
+  {C.YL}[4]{C.R}  {C.WH}{tr('generate_raw_metrics')}{C.R}
+      {C.GY}Generate raw per-question metrics and save bounds{C.R}
 
-  {C.YL}[5]{C.R}  {C.WH}{tr('compare_frameworks')}{C.R}
-       {C.GY}Load 2+ frameworks · bar charts · spider · PDF{C.R}
+  {C.YL}[5]{C.R}  {C.WH}{tr('generate_report')}{C.R}
+      {C.GY}Generate report from bounds · ASCII charts · Excel + CSV + PDF{C.R}
 
-  {C.YL}[6]{C.R}  {C.WH}{tr('language_settings')}{C.R}
-       {C.GY}UI: {state.get('ui_lang','en')}   PDF: {state.get('report_lang','en')}{C.R}
+  {C.YL}[6]{C.R}  {C.WH}{tr('compare_frameworks')}{C.R}
+      {C.GY}Load 2+ frameworks · bar charts · spider · PDF{C.R}
+
+  {C.YL}[7]{C.R}  {C.WH}{tr('language_settings')}{C.R}
+      {C.GY}UI: {state.get('ui_lang','en')}   PDF: {state.get('report_lang','en')}{C.R}
 
   {C.YL}[0]{C.R}  {C.WH}{tr('exit')}{C.R}
 
@@ -670,9 +895,10 @@ def main():
         if   choice == "1": menu_load_csv()
         elif choice == "2": menu_weights()
         elif choice == "3": menu_llm_settings()
-        elif choice == "4": menu_metrics()
-        elif choice == "5": menu_compare_frameworks()
-        elif choice == "6": menu_language()
+        elif choice == "4": menu_raw_metrics()
+        elif choice == "5": menu_reports()
+        elif choice == "6": menu_compare_frameworks()
+        elif choice == "7": menu_language()
         elif choice == "0":
             banner()
             print(f"\n  {C.CY}{C.B}Thanks for using RAGking.{C.R}\n")

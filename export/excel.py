@@ -25,16 +25,23 @@ def export_excel(results_df: pd.DataFrame, output_path: str, frameworks: dict = 
                 results_df.to_excel(writer, sheet_name="Raw Results", index=False)
 
                 if "Model" in results_df.columns:
-                    summary = results_df.groupby("Model").agg(
-                        Rows        =("Question",            "count"),
-                        Correctness =("Correctness",         "mean"),
-                        Latency_ms  =("Execution Time (ms)", "mean"),
-                        Token_Eff   =("token_eff_raw",       "mean"),
-                        Total_Tokens=("Total Tokens",        "sum"),
-                        Failures    =("is_failure",          "sum"),
-                        Sim         =("String Similarity",   "mean"),
-                        RAGking     =("RAGking_score",       "mean"),
-                    ).round(2).sort_values("RAGking", ascending=False)
+                    summary_aggs = {
+                        "Rows":        ("Question",            "count"),
+                        "Correctness": ("Correctness",         "mean"),
+                        "Latency_ms":  ("Execution Time (ms)", "mean"),
+                        "Token_Eff":   ("token_eff_raw",       "mean"),
+                        "Total_Tokens":("Total Tokens",        "sum"),
+                        "Failures":    ("is_failure",          "sum"),
+                        "Sim":         ("String Similarity",   "mean"),
+                    }
+                    if "RAGking_score" in results_df.columns:
+                        summary_aggs["RAGking"] = ("RAGking_score", "mean")
+
+                    summary = results_df.groupby("Model").agg(**summary_aggs).round(2)
+                    if "RAGking" in summary.columns:
+                        summary = summary.sort_values("RAGking", ascending=False)
+                    elif "Correctness" in summary.columns:
+                        summary = summary.sort_values("Correctness", ascending=False)
                     summary.to_excel(writer, sheet_name="Summary by Model")
 
             # ── Multi-framework sheets ─────────────────────────────────────────
