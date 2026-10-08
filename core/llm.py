@@ -15,33 +15,18 @@ from core.config import state
 # ══════════════════════════════════════════════════════════════════════════════
 #  JUDGE PROMPT
 # ══════════════════════════════════════════════════════════════════════════════
-JUDGE_PROMPT = """You are an expert factual evaluator.
+JUDGE_PROMPT = """You are an expert factual evaluator assessing responses in a strict legal context.
+Your primary directives are:
+- MISTAKEN FACT: Providing incorrect or hallucinated information is the WORST possible outcome.
+- IGNORANCE IS SAFER: Safely admitting lack of information is better than lying.
+- CONCISENESS: Providing excessive, unasked-for information (verbosity/hallucination of scope) must be penalized.
 
-Your task is to compare a GENERATED ANSWER against the
-GROUND TRUTH and score factual correctness only.
-
-Score from 1 to 5, using the following criteria:
-
-1 → No relevant information found in the ground truth,
-    or the answer is unrelated or states no information.
-2 → The answer attempts a response but contains important
-    factual errors (wrong dates, names, or facts).
-3 → The core meaning is correct, but some details are
-    missing, imprecise, or partially incorrect.
-4 → Very good answer: mostly correct, with minor omissions
-    or small inaccuracies that do not change the meaning.
-5 → Excellent and precise: the answer matches the ground
-    truth almost exactly (paraphrasing allowed).
-
-Rules:
-- Compare only factual content, not style.
-- Paraphrases are valid if meaning is preserved.
-- If a critical fact is wrong, the score cannot exceed 2.
-- Do not penalize minor wording differences.
-- Prefer scores 3–4 when the main idea is correct.
-- Assign score 5 only when responses are clearly equivalent.
-
-Output MUST be JSON with the following structure:
+Score from 1 to 5 using this strict rubric:
+1 → FATAL ERROR: Contains major factual errors, hallucinates laws, or contradicts the 'Correct Answer'.
+2 → NO INFO / REFUSAL: The model safely admits it lacks information, says "I don't know", or provides no relevant answer without lying.
+3 → PARTIALLY CORRECT or BLOATED: The core answer is partially correct but misses key details, OR the answer is correct but contains significant extra, unrequested information.
+4 → MOSTLY CORRECT: Factually aligned with the 'Correct Answer', but slightly verbose or missing a very minor detail.
+5 → PERFECT: Fully correct, precise, and highly concise. Answers exactly what was asked without unnecessary fluff.
 
 Return ONLY JSON:
 {{"score": <1-5>}}

@@ -231,10 +231,16 @@ The project automatically loads environment variables from a .env file if presen
 
 ## 7. Installation and Usage
 
+### Repository
+
+Official project repository:
+
+https://github.com/LanderXavier/RAGking
+
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/LanderXavier/RAGking
+git clone https://github.com/LanderXavier/RAGking.git
 cd framework
 ```
 
@@ -271,46 +277,53 @@ python main.py
 
 ### 6. Use the interactive menu
 
-The CLI follows a sequential two-stage workflow that is important to understand before running evaluations:
+The CLI is organized around a sequential evaluation flow that mirrors the actual methodology of the framework:
 
-#### Stage 1: Load the dataset and generate raw metrics
+#### Main menu options
 
-This is the first analysis pass. The user loads a CSV dataset and then executes the raw metrics routine. In this step, the framework computes the quality and operational signals required to understand the distribution of the data and its current bounds.
+1. Load Dataset
+   - Import the CSV file containing the evaluation examples.
 
-This stage includes:
+2. Adjust Weights
+   - Set the relative importance of correctness, economic efficiency, latency, maintenance, and failure rate.
 
-- loading the evaluation dataset,
-- checking required columns,
-- computing Correctness using the LLM judge (1–5 scale),
-- computing embedding similarity,
-- estimating token cost and latency,
-- deriving failure indicators,
-- saving a bounds profile for the current dataset.
+3. LLM & Embeddings Settings
+   - Configure the response model, judge model, and embedding model.
 
-This step is essential because it reveals the dataset's empirical range and behavior before normalization. It is not the final ranking stage; it is the descriptive and calibration phase.
+4. Generate Raw Metrics & Bounds
+   - Compute per-question correctness, similarity, cost, latency, failure indicators, and save the bounds profile for the current dataset.
 
-#### Stage 2: Generate the normalized report and compare runs
+5. Generate Report from Bounds
+   - Normalize the variables and compute the final RAGking score, including aggregate summaries and exportable charts.
 
-Once the raw metrics are available, the user generates the report from the raw metrics/bounds. In this second stage, the framework normalizes the variables to a common scale and calculates the final RAGking score.
+6. Compare RAG Frameworks
+   - Load two or more result files from different RAG implementations and compare them using the same scoring protocol.
 
-This stage is where the final visualizations and ranking are produced. The important concept is that the comparison is performed on the already computed results from one or more evaluation runs, not on the raw dataset alone.
+7. Framework/Report Language
+   - Select the user interface and report language.
 
-The practical workflow is:
+0. Exit
+   - Terminate the application.
 
-1. Load CSV.
-2. Generate raw metrics and save bounds.
-3. Use the raw metrics (or saved exported CSV) to generate the normalized report.
-4. Compare two or more evaluation results from the same dataset or from equivalent QA test sets.
-5. Visualize the final ranking, score distributions, and operational trade-offs.
+#### Evaluation workflow in practice
 
-This design is especially useful when evaluating different orchestration strategies, for example:
+The intended workflow is:
 
-- same dataset, different RAG prompting pipelines,
-- same benchmark, different retrieval strategies,
-- same QA benchmark with generalized or domain-specific knowledge bases,
-- multiple models or orchestration frameworks under the same evaluation protocol.
+1. Load the evaluation dataset.
+2. Configure the judge and embedding models.
+3. Generate raw metrics and bounds for the current dataset.
+4. Inspect the dataset distribution and operational characteristics.
+5. Generate the final normalized report and RAGking score.
+6. Compare multiple framework outputs or orchestration configurations using the same benchmark protocol.
 
-This mirrors the intended long-term use case: researchers and practitioners can benchmark the same dataset under different RAG configurations and compare them fairly using a common measurement protocol.
+This process is designed so that the raw metrics stage serves as an initial descriptive and calibration step, while the normalized report stage produces the final comparable score used for ranking and visualization.
+
+This is especially useful when evaluating:
+
+- the same QA dataset under different RAG orchestration strategies,
+- different retrieval configurations over the same benchmark,
+- generalized QA datasets versus domain-specific knowledge bases,
+- multiple orchestration frameworks under identical evaluation criteria.
 
 ### 7. Expected input format
 
@@ -385,7 +398,7 @@ This makes it possible to isolate whether improvements come from the retrieval l
 
 If this framework is used in academic or research work, the following citation style is recommended:
 
-> Liquicota, L. (2025). RAGking: A Lightweight Multidimensional Evaluation Framework for RAG Pipelines. [[Repository ](https://github.com/LanderXavier/RAGking)].
+> Liquicota, L. (2025). RAGking: A Lightweight Multidimensional Evaluation Framework for RAG Pipelines. [Repository / Technical Report].
 
 If the project is later published in a formal article or proceedings, cite the exact version, dataset, and settings used in the experiment.
 
