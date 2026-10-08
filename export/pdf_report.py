@@ -26,6 +26,7 @@ from charts.plots import (
     plot_dashboard, plot_distribution, plot_model_comparison,
     plot_framework_comparison_bars, plot_framework_ragking_bars,
     plot_framework_spider, plot_framework_box,
+    plot_framework_response_level_distribution,
     rl_score_color,
 )
 from ui.helpers import ok, err, info
@@ -864,6 +865,19 @@ def generate_framework_pdf(
         ]))
 
     story += [Spacer(1, 0.1*inch), comp_tbl, Spacer(1, 0.25*inch), PageBreak()]
+
+    # ─────────────────────────────────────────
+    # RESPONSE LEVEL DISTRIBUTION
+    # ─────────────────────────────────────────
+    story.append(_P("RESPONSE LEVEL DISTRIBUTION", head_s))
+    story.append(_P("<i>Stacked percentages per framework to compare the share of Level 1–5 responses.</i>", base["Normal"]))
+    lvl_path = _TMP + "fw_response_levels.png"
+    plot_framework_response_level_distribution(frameworks, lvl_path)
+    try:
+        story.append(Image(lvl_path, width=7.5*inch, height=4.8*inch))
+    except Exception:
+        pass
+    story.append(PageBreak())
 
     # ─────────────────────────────────────────
     # GRÁFICOS

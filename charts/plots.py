@@ -499,6 +499,78 @@ def plot_framework_box(frameworks: dict, metric_col: str, metric_label: str,
     return filename
 
 
+def plot_framework_response_level_distribution(frameworks: dict, filename: str, dpi: int = 180, scale: float = 1.0) -> str:
+    """Stacked bar chart showing the percentage distribution of correctness levels per framework."""
+    names = list(frameworks.keys())
+    level_labels = ["Level 1", "Level 2", "Level 3", "Level 4", "Level 5"]
+    level_colors = ["#3498db", "#f39c12", "#2ecc71", "#e74c3c", "#9b59b6"]
+
+    def _level_counts(df):
+        counts = [0, 0, 0, 0, 0]
+        if "Correctness" not in df.columns:
+            return counts
+
+        for corr in df["Correctness"].dropna():
+            try:
+                value = float(corr)
+            except Exception:
+                continue
+
+            if value <= 1.0:
+                counts[0] += 1
+            elif value <= 2.0:
+                counts[1] += 1
+            elif value <= 3.0:
+                counts[2] += 1
+            elif value <= 4.0:
+                counts[3] += 1
+            else:
+                counts[4] += 1
+
+        return counts
+
+    percentages = []
+    for name in names:
+        counts = _level_counts(frameworks[name])
+        total = max(sum(counts), 1)
+        percentages.append([count * 100.0 / total for count in counts])
+
+    fig, ax = plt.subplots(figsize=(max(11 * scale, len(names) * 2.8 * scale), 7 * scale))
+    fig.patch.set_facecolor("white")
+
+    x_pos = np.arange(len(names))
+    bottom = np.zeros(len(names), dtype=float)
+
+    for idx, (label, color) in enumerate(zip(level_labels, level_colors)):
+        values = np.array([fw_values[idx] for fw_values in percentages], dtype=float)
+        ax.bar(
+            x_pos,
+            values,
+            bottom=bottom,
+            color=color,
+            edgecolor="white",
+            linewidth=1.2,
+            label=label,
+            alpha=0.9,
+        )
+        bottom += values
+
+    ax.set_title("Distribution of Correctness Levels", fontsize=int(16 * scale), fontweight="bold", pad=18)
+    ax.set_xlabel("Framework", fontsize=int(14 * scale), fontweight="bold")
+    ax.set_ylabel("Percentage (%)", fontsize=int(14 * scale), fontweight="bold")
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(names, fontsize=int(11 * scale), fontweight="bold", rotation=20, ha="right")
+    ax.set_ylim(0, 100)
+    ax.tick_params(axis="y", labelsize=int(12 * scale))
+    ax.grid(axis="y", alpha=0.3, linestyle="--")
+    ax.legend(fontsize=int(11 * scale), loc="upper right", framealpha=0.95)
+
+    plt.tight_layout()
+    plt.savefig(filename, dpi=dpi, bbox_inches="tight")
+    plt.close()
+    return filename
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  ADDITIONAL COMPARATIVE CHARTS FOR 2+ FRAMEWORKS
 # ══════════════════════════════════════════════════════════════════════════════
