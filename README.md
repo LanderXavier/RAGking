@@ -234,7 +234,7 @@ The project automatically loads environment variables from a .env file if presen
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/LanderXavier/RAGking
 cd framework
 ```
 
@@ -385,7 +385,7 @@ This makes it possible to isolate whether improvements come from the retrieval l
 
 If this framework is used in academic or research work, the following citation style is recommended:
 
-> Liquicota, L. (2025). RAGking: A Lightweight Multidimensional Evaluation Framework for RAG Pipelines. [Repository / Technical Report].
+> Liquicota, L. (2025). RAGking: A Lightweight Multidimensional Evaluation Framework for RAG Pipelines. [[Repository ](https://github.com/LanderXavier/RAGking)].
 
 If the project is later published in a formal article or proceedings, cite the exact version, dataset, and settings used in the experiment.
 
